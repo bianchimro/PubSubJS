@@ -65,7 +65,7 @@ var PubSub = {};
     var messages = {};
     var lastUid = -1;
     
-    var publish = function( message, data, sync ){
+    var publish = function( message, sender, data, sync ){
         // if there are no subscribers to this message, just return here
         if ( !messages.hasOwnProperty( message ) ){
             return false;
@@ -79,8 +79,11 @@ var PubSub = {};
                 };
             }; 
             for ( var i = 0, j = subscribers.length; i < j; i++ ){
+                if (subscribers[i].sender != undefined && subscribers[i].sender != sender )
+                    continue;
+
                 try {
-                    subscribers[i].func( message, data );
+                    subscribers[i].func( data, sender );
                 } catch( e ){
                     setTimeout( throwException(e), 0);
                 }
@@ -104,8 +107,8 @@ var PubSub = {};
      *  - sync (Boolean): Forces publication to be syncronous, which is more confusing, but faster
      *  Publishes the the message, passing the data to it's subscribers
     **/
-    p.publish = function( message, data ){
-        return publish( message, data, false );
+    p.publishAsync = function( message, sender, data ){
+        return publish( message, sender, data, false );
     };
     
     /**
@@ -115,8 +118,8 @@ var PubSub = {};
      *  - sync (Boolean): Forces publication to be syncronous, which is more confusing, but faster
      *  Publishes the the message synchronously, passing the data to it's subscribers
     **/
-    p.publishSync = function( message, data ){
-        return publish( message, data, true );
+    p.publishSync = function( message, sender, data ){
+        return publish( message, sender, data, true );
     };
 
     /**
@@ -125,7 +128,7 @@ var PubSub = {};
      *  - func (Function): The function to call when a new message is published
      *  Subscribes the passed function to the passed message. Every returned token is unique and should be stored if you need to unsubscribe
     **/
-    p.subscribe = function( message, func ){
+    p.subscribe = function( message, func, sender ){
         // message is not registered yet
         if ( !messages.hasOwnProperty( message ) ){
             messages[message] = [];
@@ -134,7 +137,7 @@ var PubSub = {};
         // forcing token as String, to allow for future expansions without breaking usage
         // and allow for easy use as key names for the 'messages' object
         var token = (++lastUid).toString();
-        messages[message].push( { token : token, func : func } );
+        messages[message].push( { token : token, func : func, sender : sender } );
         
         // return token for unsubscribing
         return token;
