@@ -65,7 +65,7 @@ var PubSub = {};
     var messages = {};
     var lastUid = -1;
     
-    var publish = function( message, sender, data, sync ){
+    var publish = function( message, sender, data){
         // if there are no subscribers to this message, just return here
         if ( !messages.hasOwnProperty( message ) ){
             return false;
@@ -82,53 +82,51 @@ var PubSub = {};
                 if (subscribers[i].sender != undefined && subscribers[i].sender != sender )
                     continue;
 
-                try {
-                    subscribers[i].func( data, sender );
-                } catch( e ){
-                    setTimeout( throwException(e), 0);
+                if(subscribers[i].sync){        
+                    try {
+                        subscribers[i].func( data, sender );
+                    } catch( e ){
+                        setTimeout( throwException(e), 0);
+                    }
                 }
+                else {
+                    try {
+                        var subscriber = subscribers[i];
+                        var timedOutFunction = function(){subscriber.func( data, sender );}
+                        setTimeout(timedOutFunction, 4000);
+                    } catch( e ){
+                        setTimeout( throwException(e), 0);
+                    }
+                }
+
             }
         };
         
-        if ( sync === true ){
-            deliverMessage();
-        } else {
-            setTimeout( deliverMessage, 0 );
-        }
+        deliverMessage();
+
         return true;
     };
 
     p.version = '0.1';
-    
+
+   
     /**
      *  PubSub.publish( message[, data] ) -> Boolean
      *  - message (String): The message to publish
      *  - data: The data to pass to subscribers
-     *  - sync (Boolean): Forces publication to be syncronous, which is more confusing, but faster
+     *  
      *  Publishes the the message, passing the data to it's subscribers
     **/
-    p.publishAsync = function( message, sender, data ){
-        return publish( message, sender, data, false );
+    p.publish = function( message, sender, data ){
+        return publish( message, sender, data);
     };
     
-    /**
-     *  PubSub.publishSync( message[, data] ) -> Boolean
-     *  - message (String): The message to publish
-     *  - data: The data to pass to subscribers
-     *  - sync (Boolean): Forces publication to be syncronous, which is more confusing, but faster
-     *  Publishes the the message synchronously, passing the data to it's subscribers
-    **/
-    p.publishSync = function( message, sender, data ){
-        return publish( message, sender, data, true );
-    };
 
-    /**
-     *  PubSub.subscribe( message, func ) -> String
-     *  - message (String): The message to subscribe to
-     *  - func (Function): The function to call when a new message is published
-     *  Subscribes the passed function to the passed message. Every returned token is unique and should be stored if you need to unsubscribe
-    **/
-    p.subscribe = function( message, func, sender ){
+    var subscribe = function( message, func, sender, sync ){
+
+        if (sync == undefined)
+            sync = false;
+
         // message is not registered yet
         if ( !messages.hasOwnProperty( message ) ){
             messages[message] = [];
@@ -137,11 +135,25 @@ var PubSub = {};
         // forcing token as String, to allow for future expansions without breaking usage
         // and allow for easy use as key names for the 'messages' object
         var token = (++lastUid).toString();
-        messages[message].push( { token : token, func : func, sender : sender } );
+        messages[message].push( { token : token, func : func, sender : sender, sync : sync } );
         
         // return token for unsubscribing
         return token;
     };
+
+
+    p.subscribeSync = function( message, func, sender ){
+
+        return subscribe(message, func, sender, true);    
+
+    }
+
+    p.subscribeAsync = function( message, func, sender ){
+
+        return subscribe(message, func, sender, false);    
+
+    }
+
 
     /**
      *  PubSub.unsubscribe( token ) -> String | Boolean
